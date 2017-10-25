@@ -96,8 +96,18 @@ def make_windowed_data(data, start, end, window_size = 1):
 
     windowed_data = []
     for sentence, labels in data:
-    ### YOUR CODE HERE (5-20 lines)
-
+    ### YOUR CODE HERE (5-20 lines)    
+        newsentence=window_size*[start]+sentence+window_size*[end]
+        for i in range(len(sentence)):
+            pair=(sum(newsentence[i:(i+2*window_size+1)], []), labels[i])
+            windowed_data.append(pair)
+    '''  
+    Added by Jiarong
+    >>> [1,2]+[3,4]
+    [1, 2, 3, 4]
+    >>> [1,2]+[3,4]
+    [1, 2, 3, 4]
+    '''      
     ### END YOUR CODE
     return windowed_data
 
