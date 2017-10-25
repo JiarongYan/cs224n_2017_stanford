@@ -105,8 +105,9 @@ def make_windowed_data(data, start, end, window_size = 1):
     Added by Jiarong
     >>> [1,2]+[3,4]
     [1, 2, 3, 4]
-    >>> [1,2]+[3,4]
+    >>> sum([[1,2],[3,4]],[])
     [1, 2, 3, 4]
+
     '''      
     ### END YOUR CODE
     return windowed_data
