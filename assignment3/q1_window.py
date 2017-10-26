@@ -27,17 +27,15 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class Config:
     """Holds model hyperparams and data information.
-
     The config class is used to store various hyperparameters and dataset
     information parameters. Model objects are passed a Config() object at
     instantiation.
-
     TODO: Fill in what n_window_features should be, using n_word_features and window_size.
     """
     n_word_features = 2 # Number of features for every word in the input.
     window_size = 1 # The size of the window to use.
     ### YOUR CODE HERE
-    n_window_features = 0 # The total number of features used for each window.
+    n_window_features = n_word_features*(2*window_size+1) # The total number of features used for each window.
     ### END YOUR CODE
     n_classes = 5
     dropout = 0.5
@@ -61,12 +59,10 @@ class Config:
 
 def make_windowed_data(data, start, end, window_size = 1):
     """Uses the input sequences in @data to construct new windowed data points.
-
     TODO: In the code below, construct a window from each word in the
     input sentence by concatenating the words @window_size to the left
     and @window_size to the right to the word. Finally, add this new
     window data point and its label. to windowed_data.
-
     Args:
         data: is a list of (sentence, labels) tuples. @sentence is a list
             containing the words in the sentence and @label is a list of
@@ -96,11 +92,11 @@ def make_windowed_data(data, start, end, window_size = 1):
 
     windowed_data = []
     for sentence, labels in data:
-    ### YOUR CODE HERE (5-20 lines)    
-        newsentence=window_size*[start]+sentence+window_size*[end]
-        for i in range(len(sentence)):
-            pair=(sum(newsentence[i:(i+2*window_size+1)], []), labels[i])
-            windowed_data.append(pair)
+    ### YOUR CODE HERE (5-20 lines)
+      newsentence=window_size*[start]+sentence+window_size*[end]
+      for i in range(len(sentence)):
+        pair=(sum(newsentence[i:(i+2*window_size+1)], []), labels[i])
+        windowed_data.append(pair)
     '''  
     Added by Jiarong
     >>> [1,2]+[3,4]
@@ -108,7 +104,7 @@ def make_windowed_data(data, start, end, window_size = 1):
     >>> sum([[1,2],[3,4]],[])
     [1, 2, 3, 4]
 
-    '''      
+    ''' 
     ### END YOUR CODE
     return windowed_data
 
@@ -122,28 +118,23 @@ class WindowModel(NERModel):
 
     def add_placeholders(self):
         """Generates placeholder variables to represent the input tensors
-
         These placeholders are used as inputs by the rest of the model building and will be fed
         data during training.  Note that when "None" is in a placeholder's shape, it's flexible
         (so we can use different batch sizes without rebuilding the model).
-
         Adds following nodes to the computational graph
-
         input_placeholder: Input placeholder tensor of  shape (None, n_window_features), type tf.int32
         labels_placeholder: Labels placeholder tensor of shape (None,), type tf.int32
         dropout_placeholder: Dropout value placeholder (scalar), type tf.float32
-
         Add these placeholders to self as the instance variables
             self.input_placeholder
             self.labels_placeholder
             self.dropout_placeholder
-
         (Don't change the variable names)
         """
         ### YOUR CODE HERE (~3-5 lines)
-        self.input_placeholder = tf.placeholder(tf.int32, [None, self.config.n_window_features])
-        self.labels_placeholder = tf.placeholder(tf.int32, [None])
-        self.dropout_placeholder = tf.placeholder(tf.float32)
+        self.input_placeholder=tf.placeholder(tf.int32, shape=(None, self.config.n_window_features))
+        self.labels_placeholder=tf.placeholder(tf.int32, shape=(None,))
+        self.dropout_placeholder=tf.placeholder(tf.float32, shape=None)
         ### END YOUR CODE
 
     def create_feed_dict(self, inputs_batch, labels_batch=None, dropout=1):
@@ -153,11 +144,9 @@ class WindowModel(NERModel):
                 <placeholder>: <tensor of values to be passed for placeholder>,
                 ....
         }
-
         Hint: The keys for the feed_dict should be a subset of the placeholder
                     tensors created in add_placeholders.
         Hint: When an argument is None, don't add it to the feed_dict.
-
         Args:
             inputs_batch: A batch of input data.
             labels_batch: A batch of label data.
@@ -166,10 +155,17 @@ class WindowModel(NERModel):
             feed_dict: The feed dictionary mapping from placeholders to values.
         """
         ### YOUR CODE HERE (~5-10 lines)
-        feed_dict = {self.input_placeholder:inputs_batch, self.dropout_placeholder:dropout}
-        if labels_batch is not None:
-            feed_dict[self.labels_placeholder] = labels_batch
-       
+        if labels_batch is None:
+          feed_dict = {
+            self.input_placeholder: inputs_batch,
+            self.dropout_placeholder: dropout,
+          }
+        else:
+          feed_dict = {
+            self.input_placeholder: inputs_batch,
+            self.labels_placeholder: labels_batch,
+            self.dropout_placeholder: dropout,
+          }
         ### END YOUR CODE
         return feed_dict
 
@@ -181,7 +177,6 @@ class WindowModel(NERModel):
               tensor of shape (None, n_window_features, embedding_size).
             - Concatenates the embeddings by reshaping the embeddings tensor to shape
               (None, n_window_features * embedding_size).
-
         Hint: You might find tf.nn.embedding_lookup useful.
         Hint: You can use tf.reshape to concatenate the vectors. See following link to understand
             what -1 in a shape means.
@@ -190,10 +185,9 @@ class WindowModel(NERModel):
             embeddings: tf.Tensor of shape (None, n_window_features*embed_size)
         """
         ### YOUR CODE HERE (!3-5 lines)
-        emb = tf.Variable(self.pretrained_embeddings)
-        emb_lookup = tf.nn.embedding_lookup(emb, self.input_placeholder)
-        embeddings = tf.reshape(emb_lookup, [-1, self.config.n_window_features*self.config.embed_size])                         
-                                                                                                                 
+        embeddings=self.pretrained_embeddings
+        embeddings=tf.nn.embedding_lookup(embeddings, self.input_placeholder)
+        embeddings=tf.reshape(embeddings, (-1, self.config.n_window_features*self.config.embed_size))
         ### END YOUR CODE
         return embeddings
 
@@ -202,48 +196,28 @@ class WindowModel(NERModel):
             h = Relu(xW + b1)
             h_drop = Dropout(h, dropout_rate)
             pred = h_dropU + b2
-
         Recall that we are not applying a softmax to pred. The softmax will instead be done in
         the add_loss_op function, which improves efficiency because we can use
         tf.nn.softmax_cross_entropy_with_logits
-
         When creating a new variable, use the tf.get_variable function
         because it lets us specify an initializer.
-
         Use tf.contrib.layers.xavier_initializer to initialize matrices.
         This is TensorFlow's implementation of the Xavier initialization
         trick we used in last assignment.
-
         Note: tf.nn.dropout takes the keep probability (1 - p_drop) as an argument.
             The keep probability should be set to the value of dropout_rate.
-
         Returns:
             pred: tf.Tensor of shape (batch_size, n_classes)
         """
 
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
-        ### YOUR CODE HERE (~10-20 lines)
-        '''
+        ### YOUR CODE HERE (~10-20 lines)      
         W=tf.get_variable("W", shape=(self.config.n_window_features*self.config.embed_size, self.config.hidden_size), dtype=tf.float32, initializer=tf.contrib.layers.xavier_initializer())
-        
         b1=tf.get_variable("b1", shape=self.config.hidden_size, dtype=tf.float32, initializer=tf.zeros_initializer())
-        
         U=tf.get_variable("U", shape=(self.config.hidden_size, self.config.n_classes), dtype=tf.float32, initializer=tf.contrib.layers.xavier_initializer())
-        
         b2=tf.get_variable("b2", shape=self.config.n_classes, dtype=tf.float32, initializer=tf.zeros_initializer())
-        '''
-        W1=tf.get_variable('W1',[self.config.n_window_features*self.config.embed_size,self.config.hidden_size],\
-                        tf.float32, tf.contrib.layers.xavier_initializer())
-        b1 = tf.get_variable('b1',[self.config.hidden_size], tf.float32,\
-                            tf.constant_initializer(0))
-        U = tf.get_variable('U1', [self.config.hidden_size, self.config.n_classes],\
-                            tf.float32, tf.contrib.layers.xavier_initializer())
-        b2 = tf.get_variable('b2', [self.config.n_classes], tf.float32,\
-                                tf.constant_initializer(0))
-       
-        h=tf.nn.relu(tf.matmul(x, W1)+b1)
-        
+        h=tf.nn.relu(tf.matmul(x, W)+b1)
         h_drop=tf.nn.dropout(h, self.dropout_placeholder)
         pred=tf.matmul(h_drop, U)+b2
         ### END YOUR CODE
@@ -253,7 +227,6 @@ class WindowModel(NERModel):
         """Adds Ops for the loss function to the computational graph.
         In this case we are using cross entropy loss.
         The loss should be averaged over all examples in the current minibatch.
-
         Remember that you can use tf.nn.sparse_softmax_cross_entropy_with_logits to simplify your
         implementation. You might find tf.reduce_mean useful.
         Args:
@@ -263,31 +236,26 @@ class WindowModel(NERModel):
             loss: A 0-d tensor (scalar)
         """
         ### YOUR CODE HERE (~2-5 lines)
-        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred, labels=self.labels_placeholder))                       
+        loss=tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=pred))
         ### END YOUR CODE
         return loss
 
     def add_training_op(self, loss):
         """Sets up the training Ops.
-
         Creates an optimizer and applies the gradients to all trainable variables.
         The Op returned by this function is what must be passed to the
         `sess.run()` call to cause the model to train. See
-
         https://www.tensorflow.org/versions/r0.7/api_docs/python/train.html#Optimizer
-
         for more information.
-
         Use tf.train.AdamOptimizer for this model.
         Calling optimizer.minimize() will return a train_op object.
-
         Args:
             loss: Loss tensor, from cross_entropy_loss.
         Returns:
             train_op: The Op for training.
         """
         ### YOUR CODE HERE (~1-2 lines)
-        train_op = tf.train.AdamOptimizer(self.config.lr).minimize(loss)
+        train_op=tf.train.AdamOptimizer(self.config.lr).minimize(loss)
         ### END YOUR CODE
         return train_op
 
@@ -308,7 +276,6 @@ class WindowModel(NERModel):
 
     def predict_on_batch(self, sess, inputs_batch):
         """Make predictions for the provided batch of data
-
         Args:
             sess: tf.Session()
             input_batch: np.ndarray of shape (n_samples, n_features)
@@ -316,7 +283,7 @@ class WindowModel(NERModel):
             predictions: np.ndarray of shape (n_samples, n_classes)
         """
         feed = self.create_feed_dict(inputs_batch)
-        predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict==feed)
+        predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch):
@@ -523,3 +490,4 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         ARGS.func(ARGS)
+
