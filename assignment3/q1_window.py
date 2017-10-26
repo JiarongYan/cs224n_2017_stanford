@@ -141,7 +141,9 @@ class WindowModel(NERModel):
         (Don't change the variable names)
         """
         ### YOUR CODE HERE (~3-5 lines)
-
+        self.input_placeholder = tf.placeholder(tf.int32, [None, self.config.n_window_features])
+        self.labels_placeholder = tf.placeholder(tf.int32, [None])
+        self.dropout_placeholder = tf.placeholder(tf.float32)
         ### END YOUR CODE
 
     def create_feed_dict(self, inputs_batch, labels_batch=None, dropout=1):
@@ -164,7 +166,10 @@ class WindowModel(NERModel):
             feed_dict: The feed dictionary mapping from placeholders to values.
         """
         ### YOUR CODE HERE (~5-10 lines)
-         
+        feed_dict = {self.input_placeholder:inputs_batch, self.dropout_placeholder:dropout}
+        if labels_batch is not None:
+            feed_dict[self.labels_placeholder] = labels_batch
+       
         ### END YOUR CODE
         return feed_dict
 
@@ -185,8 +190,9 @@ class WindowModel(NERModel):
             embeddings: tf.Tensor of shape (None, n_window_features*embed_size)
         """
         ### YOUR CODE HERE (!3-5 lines)
-                                                             
-                                  
+        emb = tf.Variable(self.pretrained_embeddings)
+        emb_lookup = tf.nn.embedding_lookup(emb, self.input_placeholder)
+        embeddings = tf.reshape(emb_lookup, [-1, self.config.n_window_features*self.config.embed_size])                         
                                                                                                                  
         ### END YOUR CODE
         return embeddings
@@ -218,7 +224,28 @@ class WindowModel(NERModel):
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
         ### YOUR CODE HERE (~10-20 lines)
-
+        '''
+        W=tf.get_variable("W", shape=(self.config.n_window_features*self.config.embed_size, self.config.hidden_size), dtype=tf.float32, initializer=tf.contrib.layers.xavier_initializer())
+        
+        b1=tf.get_variable("b1", shape=self.config.hidden_size, dtype=tf.float32, initializer=tf.zeros_initializer())
+        
+        U=tf.get_variable("U", shape=(self.config.hidden_size, self.config.n_classes), dtype=tf.float32, initializer=tf.contrib.layers.xavier_initializer())
+        
+        b2=tf.get_variable("b2", shape=self.config.n_classes, dtype=tf.float32, initializer=tf.zeros_initializer())
+        '''
+        W1=tf.get_variable('W1',[self.config.n_window_features*self.config.embed_size,self.config.hidden_size],\
+                        tf.float32, tf.contrib.layers.xavier_initializer())
+        b1 = tf.get_variable('b1',[self.config.hidden_size], tf.float32,\
+                            tf.constant_initializer(0))
+        U = tf.get_variable('U1', [self.config.hidden_size, self.config.n_classes],\
+                            tf.float32, tf.contrib.layers.xavier_initializer())
+        b2 = tf.get_variable('b2', [self.config.n_classes], tf.float32,\
+                                tf.constant_initializer(0))
+       
+        h=tf.nn.relu(tf.matmul(x, W1)+b1)
+        
+        h_drop=tf.nn.dropout(h, self.dropout_placeholder)
+        pred=tf.matmul(h_drop, U)+b2
         ### END YOUR CODE
         return pred
 
@@ -236,7 +263,7 @@ class WindowModel(NERModel):
             loss: A 0-d tensor (scalar)
         """
         ### YOUR CODE HERE (~2-5 lines)
-                                   
+        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred, labels=self.labels_placeholder))                       
         ### END YOUR CODE
         return loss
 
@@ -260,7 +287,7 @@ class WindowModel(NERModel):
             train_op: The Op for training.
         """
         ### YOUR CODE HERE (~1-2 lines)
-
+        train_op = tf.train.AdamOptimizer(self.config.lr).minimize(loss)
         ### END YOUR CODE
         return train_op
 
@@ -289,7 +316,7 @@ class WindowModel(NERModel):
             predictions: np.ndarray of shape (n_samples, n_classes)
         """
         feed = self.create_feed_dict(inputs_batch)
-        predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict=feed)
+        predictions = sess.run(tf.argmax(self.pred, axis=1), feed_dict==feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch):
